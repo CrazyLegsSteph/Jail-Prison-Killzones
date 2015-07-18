@@ -55,7 +55,7 @@ namespace JailPrison
         public override void Initialize()
         {
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-            ServerApi.Hooks.GamePostInitialize.Register(this, OnPostInit);
+            ServerApi.Hooks.GamePostInitialize.Register(this, OnPostInit, -1);
             ServerApi.Hooks.ServerChat.Register(this, OnChat);
             TShockAPI.Hooks.RegionHooks.RegionEntered += OnRegionEnter;
             TShockAPI.Hooks.RegionHooks.RegionLeft += OnRegionLeft;
@@ -84,23 +84,21 @@ namespace JailPrison
             Commands.ChatCommands.Add(new Command("jp.imprison", Imprison, "imprison"));
             Commands.ChatCommands.Add(new Command("jp.imprison", SetFree, "setfree"));
             Commands.ChatCommands.Add(new Command("jp.reload", JPReload, "jpreload"));
-            Commands.ChatCommands.Add(new Command("jp.killzones.set", KillzoneReg, "killreg"));
+            Commands.ChatCommands.Add(new Command("jp.killzones.set", KillzoneReg, "killzone", "kz", "killreg", "kr"));
         }
 
         private void OnPostInit(EventArgs args)
         {
-            Commands.HandleCommand(TSPlayer.Server, "{0}killreg reload".SFormat(TShock.Config.CommandSpecifier));
+            loadKillzones();
         }
 
         private void OnChat(ServerChatEventArgs args)
         {
-            List<string> unallowedCmds = new List<string> { "tp", "home", "swap", "spawn", "warp" };
-
-            foreach (string cmd in unallowedCmds)
+            foreach (string cmd in config.unAllowedCommandsWhileImprisoned)
             {
                 if (args.Text.StartsWith("/{0}".SFormat(cmd)) && Prisoners.Contains(TShock.Players[args.Who].IP))
                 {
-                    TShock.Players[args.Who].SendErrorMessage("You cannot teleport out of jail.");
+                    TShock.Players[args.Who].SendErrorMessage("You cannot use this command while imprisoned.");
                     args.Handled = true;
                 }
             }
@@ -108,7 +106,7 @@ namespace JailPrison
 
         private void OnRegionEnter(TShockAPI.Hooks.RegionHooks.RegionEnteredEventArgs args)
         {
-            if (Killzones.Contains(args.Region))
+            if (Killzones.Contains(args.Region) && !args.Player.Group.HasPermission("jp.killzones.bypass"))
             {
                 args.Player.DamagePlayer(15000);
                 args.Player.SendErrorMessage("You stumbled into a trap...");
@@ -210,7 +208,7 @@ namespace JailPrison
             if (args.Parameters.Count < 1)
             {
                 args.Player.SendErrorMessage("Invalid syntax! Proper syntax:");
-                args.Player.SendErrorMessage("{0}killreg add|remove|reload [region]", TShock.Config.CommandSpecifier);
+                args.Player.SendErrorMessage("{0}killzone add|remove|reload|list [region]", TShock.Config.CommandSpecifier);
                 return;
             }
 
@@ -251,9 +249,36 @@ namespace JailPrison
                         args.Player.SendSuccessMessage("Killzones loaded.");
                     }
                     return;
+                case "list":
+                    {
+                        var list = from k in listKillzones() select k;
+
+                        int pageNum;
+
+                        if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, args.Player, out pageNum))
+                            return;
+
+                        PaginationTools.SendPage(args.Player, pageNum, PaginationTools.BuildLinesFromTerms(list),
+                            new PaginationTools.Settings 
+                            {
+                                HeaderFormat = "Killzones ({0}/{1})",
+                                FooterFormat = "Type {0}killzone list {{0}} for more".SFormat(TShock.Config.CommandSpecifier),
+                                NothingToDisplayString = "There are no killzones defined."
+                            });
+                    }
+                    return;
+                case "help":
+                    {
+                        args.Player.SendInfoMessage("Available subcommands:");
+                        args.Player.SendInfoMessage("Add <region>: Makes an existing region a killzone.");
+                        args.Player.SendInfoMessage("Remove <region>: Removes a killzone.");
+                        args.Player.SendInfoMessage("Reload: Reloads all killzones.");
+                        args.Player.SendInfoMessage("List: Lists all killzones.");
+                    }
+                    return;
                 default:
                     {
-                        args.Player.SendErrorMessage("Invalid subcommand.");
+                        args.Player.SendErrorMessage("Invalid subcommand. Type {0}killzone help for a list of valid commands.", TShock.Config.CommandSpecifier);
                     }
                     return;
             }
@@ -319,6 +344,22 @@ namespace JailPrison
             var region = TShock.Regions.GetRegionByName(name);
             Killzones.Remove(region);
             db.Query("DELETE FROM Killzones WHERE RegionName=@0;", name);
+        }
+
+
+        private List<string> listKillzones()
+        {
+            List<string> killzones = new List<string>();
+
+            using (QueryResult reader = db.QueryReader("SELECT * FROM Killzones"))
+            {
+                while (reader.Read())
+                {
+                    var region = TShock.Regions.GetRegionByName(reader.Get<string>("RegionName"));
+                    killzones.Add(region.Name);
+                }
+            }
+            return killzones;
         }
         #endregion
     }
