@@ -33,12 +33,12 @@ namespace JailPrison
 
         public override string Author
         {
-            get { return "DarkunderdoG"; }
+            get { return "Professor X"; }
         }
 
         public override string Description
         {
-            get { return "Jail & Prison plugin"; }
+            get { return "Jail / Prison & Killzones plugin"; }
         }
 
         public override Version Version
