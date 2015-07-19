@@ -12,7 +12,7 @@ namespace JailPrison
     {
         public string jailWarp = "prison";
         public string jailRegion = "prison";
-        public List<string> unAllowedCommandsWhileImprisoned = new List<string>() { "tp", "home", "spawn", "warp" };
+        public string[] unAllowedCommandsWhileImprisoned = { "tp", "home", "spawn", "warp" };
 
         public void Write(string path)
         {

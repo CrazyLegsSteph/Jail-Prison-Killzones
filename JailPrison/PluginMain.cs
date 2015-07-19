@@ -9,6 +9,7 @@ using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
 using TShockAPI.DB;
+using TShockAPI.Hooks;
 using Mono.Data.Sqlite;
 using MySql.Data.MySqlClient;
 
@@ -43,7 +44,7 @@ namespace JailPrison
 
         public override Version Version
         {
-            get { return new Version(1, 1, 0, 0); }
+            get { return new Version(1, 1, 0, 1); }
         }
 
         public PluginMain(Main game) : base(game)
@@ -57,8 +58,9 @@ namespace JailPrison
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
             ServerApi.Hooks.GamePostInitialize.Register(this, OnPostInit, -1);
             ServerApi.Hooks.ServerChat.Register(this, OnChat);
-            TShockAPI.Hooks.RegionHooks.RegionEntered += OnRegionEnter;
-            TShockAPI.Hooks.RegionHooks.RegionLeft += OnRegionLeft;
+            RegionHooks.RegionEntered += OnRegionEnter;
+            RegionHooks.RegionLeft += OnRegionLeft;
+            RegionHooks.RegionDeleted += OnRegionDeleted;
         }
 
         protected override void Dispose(bool disposing)
@@ -68,8 +70,9 @@ namespace JailPrison
                 ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
                 ServerApi.Hooks.GamePostInitialize.Deregister(this, OnPostInit);
                 ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
-                TShockAPI.Hooks.RegionHooks.RegionEntered -= OnRegionEnter;
-                TShockAPI.Hooks.RegionHooks.RegionLeft -= OnRegionLeft;
+                RegionHooks.RegionEntered -= OnRegionEnter;
+                RegionHooks.RegionLeft -= OnRegionLeft;
+                RegionHooks.RegionDeleted -= OnRegionDeleted;
             }
             base.Dispose(disposing);
         }
@@ -104,7 +107,7 @@ namespace JailPrison
             }
         }
 
-        private void OnRegionEnter(TShockAPI.Hooks.RegionHooks.RegionEnteredEventArgs args)
+        private void OnRegionEnter(RegionHooks.RegionEnteredEventArgs args)
         {
             if (Killzones.Contains(args.Region) && !args.Player.Group.HasPermission("jp.killzones.bypass"))
             {
@@ -114,7 +117,7 @@ namespace JailPrison
             }
         }
 
-        private void OnRegionLeft(TShockAPI.Hooks.RegionHooks.RegionLeftEventArgs args)
+        private void OnRegionLeft(RegionHooks.RegionLeftEventArgs args)
         {
             foreach (TSPlayer tsplr in TShock.Players)
             {
@@ -131,6 +134,12 @@ namespace JailPrison
                     }
                 }
             }
+        }
+
+        private void OnRegionDeleted(RegionHooks.RegionDeletedEventArgs args)
+        {
+            deleteKillzone(args.Region.Name);
+            TShock.Log.ConsoleInfo("Region '{0}' has been removed from the Killzones database.", args.Region.Name);
         }
         #endregion
 
